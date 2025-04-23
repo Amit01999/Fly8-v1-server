@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
-const User = require('../models/User');
+const User = require('../models/Student');
 
 //authentication means it verify the token which we had saved in controller (in cookie , and body(user));
 exports.auth = async (req, res, next) => {
