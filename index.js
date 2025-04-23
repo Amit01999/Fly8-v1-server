@@ -16,13 +16,10 @@ const PORT = process.env.PORT || 4000;
 //database connect
 database.connect();
 //middlewares
-app.use(express.json());
-app.use(cookieParser());
-
-const allowedOrigins = ['https://fly8-v1.vercel.app'];
 app.use(
   cors({
     origin: (origin, callback) => {
+      const allowedOrigins = ['https://fly8-v1.vercel.app'];
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -32,6 +29,8 @@ app.use(
     credentials: true,
   })
 );
+app.use(express.json());
+app.use(cookieParser());
 // app.use(cors());
 
 app.use(
