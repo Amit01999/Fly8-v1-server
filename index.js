@@ -16,10 +16,27 @@ const PORT = process.env.PORT || 4000;
 //database connect
 database.connect();
 //middlewares
+// app.use(
+//   cors({
+//     origin: (origin, callback) => {
+//       const allowedOrigins = ['https://fly8-v1.vercel.app'];
+//       if (!origin || allowedOrigins.includes(origin)) {
+//         callback(null, true);
+//       } else {
+//         callback(new Error('Not allowed by CORS'));
+//       }
+//     },
+//     credentials: true,
+//   })
+// );
 app.use(
   cors({
     origin: (origin, callback) => {
-      const allowedOrigins = ['https://fly8-v1.vercel.app'];
+      const allowedOrigins = [
+        'https://fly8-v1.vercel.app',
+        'https://fly8.info', // ✅ Add your custom domain here
+        'https://www.fly8.info', // ✅ Optionally include www version if needed
+      ];
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -29,6 +46,7 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(express.json());
 app.use(cookieParser());
 // app.use(cors());
