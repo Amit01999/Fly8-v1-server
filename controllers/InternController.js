@@ -1,6 +1,5 @@
-import Intern from '../models/intern';
-
-export const submitInternApplication = async (req, res) => {
+const Intern = require('../models/intern');
+const submitInternApplication = async (req, res) => {
   try {
     const newApplication = new Intern(req.body);
     await newApplication.save();
@@ -9,4 +8,8 @@ export const submitInternApplication = async (req, res) => {
     console.error('Submit error:', error);
     res.status(500).json({ message: 'Server error. Please try again.' });
   }
+};
+
+module.exports = {
+  submitInternApplication,
 };

@@ -1,8 +1,10 @@
-import express from 'express';
-import { submitInternApplication } from '../controllers/InternController.js';
+const express = require('express');
+const {
+  submitInternApplication,
+} = require('../controllers/InternController.js');
 
 const router = express.Router();
 
 router.post('/apply', submitInternApplication);
 
-export default router;
+module.exports = router;
