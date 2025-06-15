@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 
 const userRoutes = require('./routes/User');
+const internRoutes = require('./routes/intern');
 
 const database = require('./config/database');
 const cookieParser = require('cookie-parser');
@@ -34,8 +35,8 @@ app.use(
     origin: (origin, callback) => {
       const allowedOrigins = [
         'https://fly8-v1.vercel.app',
-        'https://fly8.info', // ✅ Add your custom domain here
-        'https://www.fly8.info', // ✅ Optionally include www version if needed
+        'https://fly8.global', // ✅ Add your custom domain here
+        'https://www.fly8.global', // ✅ Optionally include www version if needed
       ];
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -62,6 +63,7 @@ cloudinaryConnect();
 
 //routes
 app.use('/api/v1/auth', userRoutes);
+app.use('/api/v1/intern', internRoutes);
 
 //def route
 app.get('/', (req, res) => {
