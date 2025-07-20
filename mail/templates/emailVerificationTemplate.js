@@ -76,7 +76,7 @@ const otpTemplate = otp => {
 				Once your account is verified, you will have access to our platform and its features.</p>
 			</div>
 			<div class="support">If you have any questions or need assistance, please feel free to reach out to us at <a
-					href="mailto:info@Fly8.com">info@fly8.com</a>. We are here to help!</div>
+					href="mailto:contact@fly8.global">contact@fly8.global</a>. We are here to help!</div>
 		</div>
 	</body>
 	

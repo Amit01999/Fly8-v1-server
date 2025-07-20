@@ -23,7 +23,7 @@ async function sendVerificationEmail(email, otp) {
   try {
     const mailResponse = await mailSender(
       email,
-      'Verification Email from StudyBoost',
+      'Verification Email from Fly8',
       emailTemplate(otp)
     );
     console.log('Email sent Successfully: ', mailResponse);
