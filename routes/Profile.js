@@ -1,25 +1,32 @@
-const express = require("express")
-const router = express.Router()
+import express from 'express';
+import {
+  getProfile,
+  addOrUpdateAcademicInfo,
+  addOrUpdateStudyPreferences,
+  uploadDocument,
+  addCourse,
+  addNotification,
+  addMessage,
+  addAppointment,
+  updatePersonalInformation,
+} from './profile.controller';
 
+const router = express.Router();
 
-// Routes for deleteprofile , updateprofile ,getuserdetails , getEnrolledCourse , updateDisplayPicture;
-
-
-const { auth, isInstructor } = require("../middlewares/auth")
-const {deleteAccount, updateProfile, getAllUserDetails, updateDisplayPicture,  getEnrolledCourses, instructorDashboard} = require("../controllers/Profile")
-   
-    
-// ********************************************************************************************************
-//                                      Profile routes                                                    *
-// ********************************************************************************************************
-router.delete("/deleteProfile", auth, deleteAccount)                        // Delet User Account
-router.put("/updateProfile", auth, updateProfile)
-router.get("/getUserDetails", auth, getAllUserDetails)
-router.get("/getEnrolledCourses", auth, getEnrolledCourses)                  // Get Enrolled Courses
-router.put("/updateDisplayPicture", auth, updateDisplayPicture)
-router.get("/instructorDashboard", auth, isInstructor, instructorDashboard)
-
-
-module.exports = router
-
- 
+router.get('/profile/:studentId', getProfile);
+router.put('/profile/:studentId/academic-info', addOrUpdateAcademicInfo);
+router.put(
+  '/profile/:studentId/study-preferences',
+  addOrUpdateStudyPreferences
+);
+router.post(
+  '/profile/:studentId/documents',
+  upload.single('file'),
+  uploadDocument
+);
+router.post('/profile/:studentId/courses', addCourse);
+router.post('/profile/:studentId/notifications', addNotification);
+router.post('/profile/:studentId/messages', addMessage);
+router.post('/profile/:studentId/appointments', addAppointment);
+router.put('/student/:studentId/personal', updatePersonalInformation);
+export default router;

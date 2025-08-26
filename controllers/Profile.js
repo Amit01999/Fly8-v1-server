@@ -1,204 +1,303 @@
-const mongoose = require("mongoose")
-const Profile = require("../models/Profile")
-const CourseProgress = require("../models/CourseProgress")
-const Course = require("../models/Course")
-const User = require("../models/User")
-const { uploadImageToCloudinary } = require("../utils/imageUploader")
-const { convertSecondsToDuration } = require("../utils/secToDuration")
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
 
+const Student = require('./student.model');
+const Profile = require('./profile.model');
 
-// Method for updating a profile
-exports.updateProfile = async (req, res) => {
-  try {
-    const {firstName = "",  lastName = "", dateOfBirth = "",  about = "",  contactNumber = "",  gender = "", } = req.body
-    const id = req.user.id
-
-    // Find the profile by id
-    const userDetails = await User.findById(id)
-    const profile = await Profile.findById(userDetails.additionalDetails)
-
-    const user = await User.findByIdAndUpdate(id, { firstName,  lastName, })
-      
-    await user.save()
-
-    // Update the profile fields
-    profile.dateOfBirth = dateOfBirth
-    profile.about = about
-    profile.contactNumber = contactNumber
-    profile.gender = gender
-
-    await profile.save()                                     // Save the updated profile
-
-    // Find the updated user details
-    const updatedUserDetails = await User.findById(id).populate("additionalDetails").exec()
-      
-    return res.json({
-      success: true,
-      message: "Profile updated successfully",
-      updatedUserDetails,
-    })
-  } 
-  catch (error) {
-    console.log(error)
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    })
-  }
-}
-
-
-exports.deleteAccount = async (req, res) => {
-  try {
-    const id = req.user.id
-    const user = await User.findById({ _id: id })
-    if(!user) {
-      return res.status(404).json({ success: false,  message: "User not found", })
+// Multer setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = './uploads/';
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath);
     }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
 
-    // Delete Assosiated Profile with the User , note we used here "new mongoose.Types.ObjectId()" to convert string into object;
-    await Profile.findByIdAndDelete({ _id: new mongoose.Types.ObjectId(user.additionalDetails), })
-      
-    for(const courseId of user.courses) {
-      await Course.findByIdAndUpdate(courseId, {$pull: {studentsEnrolled: id}}, {new: true} )
-    }
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-    // Now Delete User
-    await User.findByIdAndDelete({ _id: id })
+// Calculate profile completion
+const calculateCompletionPercentage = profile => {
+  let totalFields = 0;
+  let filledFields = 0;
 
-    res.status(200).json({
-      success: true,
-      message: "User deleted successfully",
-    })
+  const academicInfoFields = [
+    profile.academicInfo.highestEducation,
+    profile.academicInfo.institutionName,
+    profile.academicInfo.fieldOfStudy,
+    profile.academicInfo.graduationYear,
+    profile.academicInfo.gpa,
+    profile.academicInfo.gradeSystem,
+  ];
+  totalFields += academicInfoFields.length;
+  filledFields += academicInfoFields.filter(v => v && v.trim() !== '').length;
 
-    await CourseProgress.deleteMany({ userId: id })
-  } 
-  catch (error){
-         res.status(500).json({ success: false, message: "User Cannot be deleted successfully" }) 
-    }
-}
+  const preferenceFields = [
+    profile.studyPreferences.preferredCountries.length > 0,
+    profile.studyPreferences.preferredPrograms.length > 0,
+    profile.studyPreferences.studyLevel,
+    profile.studyPreferences.intakePreference.length > 0,
+    profile.studyPreferences.budgetRange,
+    profile.studyPreferences.accommodation,
+  ];
+  totalFields += preferenceFields.length;
+  filledFields += preferenceFields.filter(v => v).length;
 
+  const requiredDocs = [
+    'Passport',
+    'Academic Transcripts',
+    'English Proficiency Test Results',
+  ];
+  totalFields += requiredDocs.length;
+  filledFields += requiredDocs.filter(docType =>
+    profile.documents.some(doc => doc.type === docType)
+  ).length;
 
-exports.getAllUserDetails = async (req, res) => {
+  return Math.round((filledFields / totalFields) * 100);
+};
+
+// Get profile
+const getProfile = async (req, res) => {
   try {
-    const id = req.user.id
-    const userDetails = await User.findById(id).populate("additionalDetails").exec()
-       
-    res.status(200).json({
-      success: true,
-      message: "User Data fetched successfully",
-      data: userDetails,
-    })
-  } 
-  catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    })
-  }
-}
-
-
-exports.updateDisplayPicture = async (req, res) => {
-  try {
-    const displayPicture = req.files.displayPicture
-    const userId = req.user.id
-    const image = await uploadImageToCloudinary(displayPicture,  process.env.FOLDER_NAME,  1000,  1000 )
-       
-    const updatedProfile = await User.findByIdAndUpdate({ _id: userId }, { image: image.secure_url },  { new: true })
-     
-    res.send({
-      success: true,
-      message: `Image Updated successfully`,
-      data: updatedProfile,
-    })
-  } 
-  catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    })
-  }
-}
-
-
-exports.getEnrolledCourses = async (req, res) => {
-  try {
-    const userId = req.user.id
-    let userDetails = await User.findOne({ _id: userId, })
-        .populate({
-          path: "courses",
-          populate: {
-            path: "courseContent",
-            populate: {
-              path: "subSection",
-            },
-          },
-        })
-        .exec() 
-    userDetails = userDetails.toObject()
-    var SubsectionLength = 0
-    for(var i = 0; i < userDetails.courses.length; i++) {
-      let totalDurationInSeconds = 0
-      SubsectionLength = 0
-      for(var j = 0; j < userDetails.courses[i].courseContent.length; j++){
-          totalDurationInSeconds += userDetails.courses[i].courseContent[j].subSection.reduce((acc, curr) => acc + parseInt(curr.timeDuration), 0)
-          userDetails.courses[i].totalDuration = convertSecondsToDuration(totalDurationInSeconds)
-          SubsectionLength +=  userDetails.courses[i].courseContent[j].subSection.length
-      }
-      let courseProgressCount = await CourseProgress.findOne({courseID: userDetails.courses[i]._id,  userId: userId,})
-      courseProgressCount = courseProgressCount?.completedVideos.length
-      if(SubsectionLength === 0) {
-        userDetails.courses[i].progressPercentage = 100
-      } 
-      else {                                             // To make it up to 2 decimal point 
-        const multiplier = Math.pow(10, 2)
-        userDetails.courses[i].progressPercentage =  Math.round( (courseProgressCount / SubsectionLength) * 100 * multiplier ) / multiplier
-      }
+    const profile = await Profile.findOne({
+      studentId: req.params.studentId,
+    }).populate('studentId');
+    if (!profile) {
+      return res.status(404).json({ message: 'Profile not found' });
     }
-
-    if(!userDetails) {
-       return res.status(400).json({success: false,  message: `Could not find user with id: ${userDetails}`,})
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: userDetails.courses,
-    })
-  } 
-  catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    })
-  }
-}
-
-
-exports.instructorDashboard = async (req, res) => {
-  try {
-    const courseDetails = await Course.find({ instructor: req.user.id })
-
-    const courseData = courseDetails.map((course) => {
-      const totalStudentsEnrolled = course?.studentsEnrolled?.length
-      const totalAmountGenerated = totalStudentsEnrolled * course.price
-
-      // Create a new object with the additional fields
-      const courseDataWithStats = {
-        _id: course._id,
-        courseName: course.courseName,
-        courseDescription: course.courseDescription,
-        totalStudentsEnrolled,                               // Include other course properties as needed
-        totalAmountGenerated,
-      }
-      return courseDataWithStats
-    })
-
-     res.status(200).json({
-        courses: courseData,
-      })
+    res.json(profile);
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ message: "Server Error" })
+    res.status(500).json({ message: 'Server error', error });
   }
-}
+};
+
+// add or update personal info
+
+const updatePersonalInformation = async (req, res) => {
+  try {
+    const studentId = req.params.studentId;
+    const updates = req.body;
+
+    const student = await Student.findByIdAndUpdate(studentId, updates, {
+      new: true,
+      runValidators: true,
+    });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json({ message: 'Personal information updated', student });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Add or update academic info
+const addOrUpdateAcademicInfo = async (req, res) => {
+  try {
+    const student = await Student.findOne({ _id: req.params.studentId });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    let profile = await Profile.findOne({ studentId: student._id });
+    if (!profile) {
+      profile = await Profile.create({ studentId: student._id });
+    }
+
+    profile.academicInfo = { ...profile.academicInfo, ...req.body };
+    profile.completionPercentage = calculateCompletionPercentage(profile);
+    await profile.save();
+
+    res.json({
+      message: profile.academicInfo.highestEducation
+        ? 'Academic info updated'
+        : 'Academic info added',
+      completionPercentage: profile.completionPercentage,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Add or update study preferences
+const addOrUpdateStudyPreferences = async (req, res) => {
+  try {
+    const student = await Student.findOne({ _id: req.params.studentId });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    let profile = await Profile.findOne({ studentId: student._id });
+    if (!profile) {
+      profile = await Profile.create({ studentId: student._id });
+    }
+
+    profile.studyPreferences = { ...profile.studyPreferences, ...req.body };
+    profile.completionPercentage = calculateCompletionPercentage(profile);
+    await profile.save();
+
+    res.json({
+      message:
+        profile.studyPreferences.preferredCountries.length > 0
+          ? 'Study preferences updated'
+          : 'Study preferences added',
+      completionPercentage: profile.completionPercentage,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Upload document
+const uploadDocument = async (req, res) => {
+  try {
+    const student = await Student.findOne({ _id: req.params.studentId });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    let profile = await Profile.findOne({ studentId: student._id });
+    if (!profile) {
+      profile = await Profile.create({ studentId: student._id });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const { type } = req.body;
+    const document = {
+      id: uuidv4(),
+      type,
+      fileName: req.file.filename,
+      url: `/uploads/${req.file.filename}`,
+      uploadedAt: new Date(),
+    };
+
+    profile.documents.push(document);
+    profile.completionPercentage = calculateCompletionPercentage(profile);
+    await profile.save();
+
+    res.json({ message: 'Document uploaded', document });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Add course
+const addCourse = async (req, res) => {
+  try {
+    const student = await Student.findOne({ _id: req.params.studentId });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    let profile = await Profile.findOne({ studentId: student._id });
+    if (!profile) {
+      profile = await Profile.create({ studentId: student._id });
+    }
+
+    const { title, status, progress } = req.body;
+    const course = { id: uuidv4(), title, status, progress: Number(progress) };
+    profile.courses.push(course);
+    await profile.save();
+
+    res.json({ message: 'Course added', course });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Add notification
+const addNotification = async (req, res) => {
+  try {
+    const student = await Student.findOne({ _id: req.params.studentId });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    let profile = await Profile.findOne({ studentId: student._id });
+    if (!profile) {
+      profile = await Profile.create({ studentId: student._id });
+    }
+
+    const { message } = req.body;
+    const notification = { id: uuidv4(), message, read: false };
+    profile.notifications.push(notification);
+    await profile.save();
+
+    res.json({ message: 'Notification added', notification });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Add message
+const addMessage = async (req, res) => {
+  try {
+    const student = await Student.findOne({ _id: req.params.studentId });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    let profile = await Profile.findOne({ studentId: student._id });
+    if (!profile) {
+      profile = await Profile.create({ studentId: student._id });
+    }
+
+    const { sender, content } = req.body;
+    const message = { id: uuidv4(), sender, content };
+    profile.messages.push(message);
+    await profile.save();
+
+    res.json({ message: 'Message added', message });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Add appointment
+const addAppointment = async (req, res) => {
+  try {
+    const student = await Student.findOne({ _id: req.params.studentId });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    let profile = await Profile.findOne({ studentId: student._id });
+    if (!profile) {
+      profile = await Profile.create({ studentId: student._id });
+    }
+
+    const { title, date, status } = req.body;
+    const appointment = { id: uuidv4(), title, date: new Date(date), status };
+    profile.appointments.push(appointment);
+    await profile.save();
+
+    res.json({ message: 'Appointment added', appointment });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Export all handlers
+module.exports = {
+  updatePersonalInformation,
+  upload,
+  calculateCompletionPercentage,
+  getProfile,
+  addOrUpdateAcademicInfo,
+  addOrUpdateStudyPreferences,
+  uploadDocument,
+  addCourse,
+  addNotification,
+  addMessage,
+  addAppointment,
+};
