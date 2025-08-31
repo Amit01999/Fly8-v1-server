@@ -1,32 +1,12 @@
-import express from 'express';
-import {
-  getProfile,
-  addOrUpdateAcademicInfo,
-  addOrUpdateStudyPreferences,
-  uploadDocument,
-  addCourse,
-  addNotification,
-  addMessage,
-  addAppointment,
-  updatePersonalInformation,
-} from './profile.controller';
-
+const express = require('express');
 const router = express.Router();
+const { submitAssessment, uploadDocuments } = require('../controllers/Profile');
+const { auth } = require('../middlewares/auth');
 
-router.get('/profile/:studentId', getProfile);
-router.put('/profile/:studentId/academic-info', addOrUpdateAcademicInfo);
-router.put(
-  '/profile/:studentId/study-preferences',
-  addOrUpdateStudyPreferences
-);
-router.post(
-  '/profile/:studentId/documents',
-  upload.single('file'),
-  uploadDocument
-);
-router.post('/profile/:studentId/courses', addCourse);
-router.post('/profile/:studentId/notifications', addNotification);
-router.post('/profile/:studentId/messages', addMessage);
-router.post('/profile/:studentId/appointments', addAppointment);
-router.put('/student/:studentId/personal', updatePersonalInformation);
-export default router;
+// POST /api/assessment - Submit assessment form
+router.post('/assessment', auth, submitAssessment);
+
+// POST /api/upload-documents - Upload documents
+router.post('/upload-documents', auth, uploadDocuments);
+
+module.exports = router;

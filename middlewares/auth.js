@@ -2,98 +2,43 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const User = require('../models/Student');
 
-//authentication means it verify the token which we had saved in controller (in cookie , and body(user));
 exports.auth = async (req, res, next) => {
   try {
-    console.log('auth middleware activated');
-    //extract token
-    const token =
-      req.cookies.token ||
-      req.body.token ||
-      req.header('Authorization').replace('Bearer ', '');
+    console.log(' i am Auth middleware i am  activated');
+    // Prioritize Authorization header
+    let token = req.header('Authorization')?.replace('Bearer ', '');
 
-    console.log('auth middlewear token:', token);
+    // Fallback to cookie or body (optional, but keep for flexibility)
+    if (!token) {
+      token = req.cookies.token || req.body.token;
+    }
+
+    console.log('Extracted token:', token ? 'Found' : 'Not found');
 
     if (!token) {
-      //if token missing, then return response
       return res.status(401).json({
         success: false,
-        message: 'TOken is missing',
+        message: 'Token is missing',
       });
     }
 
     try {
-      //verify the token
       const decode = jwt.verify(token, process.env.JWT_SECRET);
-      console.log(decode);
+      console.log('Decoded token:', decode);
       req.user = decode;
+      next();
     } catch (err) {
+      console.error('Token verification error:', err.message);
       return res.status(401).json({
         success: false,
-        message: 'token is invalid',
+        message: 'Token is invalid or expired',
       });
     }
-    next();
   } catch (error) {
+    console.error('Auth middleware error:', error.message);
     return res.status(401).json({
       success: false,
       message: 'Something went wrong while validating the token',
-    });
-  }
-};
-
-//isStudent
-exports.isStudent = async (req, res, next) => {
-  try {
-    if (req.user.accountType !== 'Student') {
-      //we had saved accountType in payload in controller(in login when password is checking) and when we decode token in auth to verify the token
-      return res.status(401).json({
-        // and we done req.user = decode; So accountType is also saved in user
-        success: false,
-        message: 'This is a protected route for Students only',
-      });
-    }
-    next();
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'User role cannot be verified, please try again',
-    });
-  }
-};
-
-//isInstructor
-exports.isInstructor = async (req, res, next) => {
-  try {
-    if (req.user.accountType !== 'Instructor') {
-      return res.status(401).json({
-        success: false,
-        message: 'This is a protected route for Instructor only',
-      });
-    }
-    next();
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'User role cannot be verified, please try again',
-    });
-  }
-};
-
-//isAdmin
-exports.isAdmin = async (req, res, next) => {
-  try {
-    if (req.user.accountType !== 'Admin') {
-      return res.status(401).json({
-        success: false,
-        message: 'This is a protected route for Admin only',
-      });
-    }
-    next();
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'User role cannot be verified, please try again',
     });
   }
 };

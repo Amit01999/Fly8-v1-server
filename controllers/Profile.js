@@ -1,303 +1,239 @@
-const fs = require('fs');
-const path = require('path');
+const Profile = require('../models/Profile');
+const Student = require('../models/Student'); // Assuming the model is named 'student'
 const multer = require('multer');
-const { v4: uuidv4 } = require('uuid');
+const path = require('path');
+const fs = require('fs');
 
-const Student = require('./student.model');
-const Profile = require('./profile.model');
-
-// Multer setup
+// Multer storage configuration for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = './uploads/';
+    const uploadPath = path.join(__dirname, '..', 'uploads', req.user.id); // Assume req.user.id from auth middleware
     if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath);
+      fs.mkdirSync(uploadPath, { recursive: true });
     }
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    const docType = file.fieldname; // 'files' but we map based on originalname or something; adjust if needed
+    cb(null, `${docType}-${Date.now()}${path.extname(file.originalname)}`);
   },
 });
 
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
-
-// Calculate profile completion
-const calculateCompletionPercentage = profile => {
-  let totalFields = 0;
-  let filledFields = 0;
-
-  const academicInfoFields = [
-    profile.academicInfo.highestEducation,
-    profile.academicInfo.institutionName,
-    profile.academicInfo.fieldOfStudy,
-    profile.academicInfo.graduationYear,
-    profile.academicInfo.gpa,
-    profile.academicInfo.gradeSystem,
-  ];
-  totalFields += academicInfoFields.length;
-  filledFields += academicInfoFields.filter(v => v && v.trim() !== '').length;
-
-  const preferenceFields = [
-    profile.studyPreferences.preferredCountries.length > 0,
-    profile.studyPreferences.preferredPrograms.length > 0,
-    profile.studyPreferences.studyLevel,
-    profile.studyPreferences.intakePreference.length > 0,
-    profile.studyPreferences.budgetRange,
-    profile.studyPreferences.accommodation,
-  ];
-  totalFields += preferenceFields.length;
-  filledFields += preferenceFields.filter(v => v).length;
-
-  const requiredDocs = [
-    'Passport',
-    'Academic Transcripts',
-    'English Proficiency Test Results',
-  ];
-  totalFields += requiredDocs.length;
-  filledFields += requiredDocs.filter(docType =>
-    profile.documents.some(doc => doc.type === docType)
-  ).length;
-
-  return Math.round((filledFields / totalFields) * 100);
-};
-
-// Get profile
-const getProfile = async (req, res) => {
-  try {
-    const profile = await Profile.findOne({
-      studentId: req.params.studentId,
-    }).populate('studentId');
-    if (!profile) {
-      return res.status(404).json({ message: 'Profile not found' });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /pdf|doc|docx|jpg|jpeg|png/;
+    const extname = allowedTypes.test(
+      path.extname(file.originalname).toLowerCase()
+    );
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
     }
-    res.json(profile);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
-};
+    cb(new Error('Unsupported file type'));
+  },
+}).array('files', 6); // Up to 6 files
 
-// add or update personal info
-
-const updatePersonalInformation = async (req, res) => {
+// Controller for submitting assessment form data
+const submitAssessment = async (req, res) => {
   try {
-    const studentId = req.params.studentId;
-    const updates = req.body;
+    console.log('Assessment submission body:', req.body);
+    const studentId = req.user.id; // From JWT middleware
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found',
+      });
+    }
 
-    const student = await Student.findByIdAndUpdate(studentId, updates, {
-      new: true,
-      runValidators: true,
+    let profile = await Profile.findOne({ student: studentId });
+    if (!profile) {
+      profile = new Profile({ student: studentId });
+    }
+
+    // Extract nested form data
+    const { personalInfo, academics, preferences, goals } = req.body;
+
+    // Map to Profile schema fields with validation
+    profile.age = personalInfo?.age
+      ? parseInt(personalInfo.age, 10)
+      : undefined;
+    profile.currentEducationLevel = academics?.currentEducation || undefined;
+    profile.fieldOfStudy = academics?.fieldOfStudy?.trim() || undefined;
+    profile.gpa = academics?.gpa?.trim() || undefined;
+    profile.graduationYear = academics?.graduationYear
+      ? parseInt(academics.graduationYear, 10)
+      : undefined;
+    profile.institution = academics?.institution?.trim() || undefined;
+    profile.ielts = academics?.ielts?.trim() || undefined;
+    profile.toefl = academics?.toefl?.trim() || undefined;
+    profile.gre = academics?.gre?.trim() || undefined;
+    profile.preferredCountries = preferences?.preferredCountries || [];
+    profile.preferredDegreeLevel =
+      preferences?.preferredDegreeLevel || undefined;
+    profile.budget = preferences?.budget?.trim() || undefined;
+    profile.careerGoals = goals?.careerGoals?.trim() || undefined;
+    profile.industry = goals?.industry || undefined;
+    profile.workLocation = goals?.workLocation || undefined;
+
+    // Validate fields against schema constraints
+    if (profile.age && profile.age < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Age must be non-negative',
+      });
+    }
+    if (profile.graduationYear) {
+      const currentYear = new Date().getFullYear();
+      if (
+        profile.graduationYear < 1900 ||
+        profile.graduationYear > currentYear + 10
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Graduation year must be between 1900 and ${
+            currentYear + 10
+          }`,
+        });
+      }
+    }
+    if (
+      profile.currentEducationLevel &&
+      !['bachelor', 'master', 'phd', 'diploma', 'other'].includes(
+        profile.currentEducationLevel
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid education level',
+      });
+    }
+    if (
+      profile.preferredDegreeLevel &&
+      !['bachelor', 'master', 'phd', 'other'].includes(
+        profile.preferredDegreeLevel
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid preferred degree level',
+      });
+    }
+    if (
+      profile.industry &&
+      ![
+        'tech',
+        'finance',
+        'healthcare',
+        'education',
+        'consulting',
+        'other',
+      ].includes(profile.industry)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid industry',
+      });
+    }
+    if (
+      profile.workLocation &&
+      !['home-country', 'study-country', 'global', 'other'].includes(
+        profile.workLocation
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid work location',
+      });
+    }
+
+    await profile.save();
+
+    // Update student's additionalDetails if not set
+    if (!student.additionalDetails) {
+      student.additionalDetails = profile._id;
+      await student.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Assessment submitted successfully',
+      profile,
     });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-
-    res.json({ message: 'Personal information updated', student });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
-};
-
-// Add or update academic info
-const addOrUpdateAcademicInfo = async (req, res) => {
-  try {
-    const student = await Student.findOne({ _id: req.params.studentId });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-
-    let profile = await Profile.findOne({ studentId: student._id });
-    if (!profile) {
-      profile = await Profile.create({ studentId: student._id });
-    }
-
-    profile.academicInfo = { ...profile.academicInfo, ...req.body };
-    profile.completionPercentage = calculateCompletionPercentage(profile);
-    await profile.save();
-
-    res.json({
-      message: profile.academicInfo.highestEducation
-        ? 'Academic info updated'
-        : 'Academic info added',
-      completionPercentage: profile.completionPercentage,
+    console.error('Submit assessment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
   }
 };
-
-// Add or update study preferences
-const addOrUpdateStudyPreferences = async (req, res) => {
-  try {
-    const student = await Student.findOne({ _id: req.params.studentId });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
+// Controller for uploading documents
+const uploadDocuments = (req, res) => {
+  upload(req, res, async err => {
+    if (err) {
+      return res.status(400).json({ message: err.message });
     }
 
-    let profile = await Profile.findOne({ studentId: student._id });
-    if (!profile) {
-      profile = await Profile.create({ studentId: student._id });
+    try {
+      const studentId = req.user.id; // Authenticated user ID
+      const student = await Student.findById(studentId);
+      if (!student) {
+        return res.status(404).json({ message: 'Student not found' });
+      }
+
+      let profile = await Profile.findOne({ student: studentId });
+      if (!profile) {
+        profile = new Profile({ student: studentId });
+      }
+
+      // Map uploaded files to profile fields based on filename prefix (e.g., transcripts_file.pdf)
+      req.files.forEach(file => {
+        const docType = file.originalname.split('_')[0]; // Assuming frontend prefixes like 'transcripts_filename.ext'
+        const filePath = `/uploads/${studentId}/${file.filename}`;
+
+        switch (docType) {
+          case 'transcripts':
+            profile.transcripts = filePath;
+            break;
+          case 'testScores':
+            profile.testScores = filePath;
+            break;
+          case 'sop':
+            profile.sop = filePath;
+            break;
+          case 'recommendation':
+            profile.recommendation = filePath;
+            break;
+          case 'resume':
+            profile.resume = filePath;
+            break;
+          case 'passport':
+            profile.passport = filePath;
+            break;
+          default:
+            // Optional: handle unknown types
+            break;
+        }
+      });
+
+      await profile.save();
+
+      // Update student's additionalDetails if not set
+      if (!student.additionalDetails) {
+        student.additionalDetails = profile._id;
+        await student.save();
+      }
+
+      res
+        .status(200)
+        .json({ message: 'Documents uploaded successfully', profile });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Server error' });
     }
-
-    profile.studyPreferences = { ...profile.studyPreferences, ...req.body };
-    profile.completionPercentage = calculateCompletionPercentage(profile);
-    await profile.save();
-
-    res.json({
-      message:
-        profile.studyPreferences.preferredCountries.length > 0
-          ? 'Study preferences updated'
-          : 'Study preferences added',
-      completionPercentage: profile.completionPercentage,
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
+  });
 };
-
-// Upload document
-const uploadDocument = async (req, res) => {
-  try {
-    const student = await Student.findOne({ _id: req.params.studentId });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-
-    let profile = await Profile.findOne({ studentId: student._id });
-    if (!profile) {
-      profile = await Profile.create({ studentId: student._id });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
-
-    const { type } = req.body;
-    const document = {
-      id: uuidv4(),
-      type,
-      fileName: req.file.filename,
-      url: `/uploads/${req.file.filename}`,
-      uploadedAt: new Date(),
-    };
-
-    profile.documents.push(document);
-    profile.completionPercentage = calculateCompletionPercentage(profile);
-    await profile.save();
-
-    res.json({ message: 'Document uploaded', document });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
-};
-
-// Add course
-const addCourse = async (req, res) => {
-  try {
-    const student = await Student.findOne({ _id: req.params.studentId });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-
-    let profile = await Profile.findOne({ studentId: student._id });
-    if (!profile) {
-      profile = await Profile.create({ studentId: student._id });
-    }
-
-    const { title, status, progress } = req.body;
-    const course = { id: uuidv4(), title, status, progress: Number(progress) };
-    profile.courses.push(course);
-    await profile.save();
-
-    res.json({ message: 'Course added', course });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
-};
-
-// Add notification
-const addNotification = async (req, res) => {
-  try {
-    const student = await Student.findOne({ _id: req.params.studentId });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-
-    let profile = await Profile.findOne({ studentId: student._id });
-    if (!profile) {
-      profile = await Profile.create({ studentId: student._id });
-    }
-
-    const { message } = req.body;
-    const notification = { id: uuidv4(), message, read: false };
-    profile.notifications.push(notification);
-    await profile.save();
-
-    res.json({ message: 'Notification added', notification });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
-};
-
-// Add message
-const addMessage = async (req, res) => {
-  try {
-    const student = await Student.findOne({ _id: req.params.studentId });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-
-    let profile = await Profile.findOne({ studentId: student._id });
-    if (!profile) {
-      profile = await Profile.create({ studentId: student._id });
-    }
-
-    const { sender, content } = req.body;
-    const message = { id: uuidv4(), sender, content };
-    profile.messages.push(message);
-    await profile.save();
-
-    res.json({ message: 'Message added', message });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
-};
-
-// Add appointment
-const addAppointment = async (req, res) => {
-  try {
-    const student = await Student.findOne({ _id: req.params.studentId });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-
-    let profile = await Profile.findOne({ studentId: student._id });
-    if (!profile) {
-      profile = await Profile.create({ studentId: student._id });
-    }
-
-    const { title, date, status } = req.body;
-    const appointment = { id: uuidv4(), title, date: new Date(date), status };
-    profile.appointments.push(appointment);
-    await profile.save();
-
-    res.json({ message: 'Appointment added', appointment });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
-};
-
-// Export all handlers
-module.exports = {
-  updatePersonalInformation,
-  upload,
-  calculateCompletionPercentage,
-  getProfile,
-  addOrUpdateAcademicInfo,
-  addOrUpdateStudyPreferences,
-  uploadDocument,
-  addCourse,
-  addNotification,
-  addMessage,
-  addAppointment,
-};
+module.exports = { submitAssessment, uploadDocuments };

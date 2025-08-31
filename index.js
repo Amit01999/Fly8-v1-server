@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 
 const userRoutes = require('./routes/User');
+const userProfile = require('./routes/Profile');
 const internRoutes = require('./routes/intern');
 const countryRoutes = require('./routes/County');
 
@@ -18,13 +19,31 @@ const PORT = process.env.PORT || 4000;
 //database connect
 database.connect();
 
+// app.use(
+//   cors({
+//     origin: (origin, callback) => {
+//       const allowedOrigins = [
+//         'https://fly8-v1.vercel.app',
+//         'https://fly8.global', // ✅ Add your custom domain here
+//         'https://www.fly8.global', // ✅ Optionally include www version if needed
+//         'http://localhost:8080',
+//       ];
+//       if (!origin || allowedOrigins.includes(origin)) {
+//         callback(null, true);
+//       } else {
+//         callback(new Error('Not allowed by CORS'));
+//       }
+//     },
+//     credentials: true,
+//   })
+// );
 app.use(
   cors({
     origin: (origin, callback) => {
       const allowedOrigins = [
         'https://fly8-v1.vercel.app',
-        'https://fly8.global', // ✅ Add your custom domain here
-        'https://www.fly8.global', // ✅ Optionally include www version if needed
+        'https://fly8.global',
+        'https://www.fly8.global',
         'http://localhost:8080',
       ];
       if (!origin || allowedOrigins.includes(origin)) {
@@ -34,13 +53,13 @@ app.use(
       }
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Set-Cookie'], // If using cookies
   })
 );
-
 app.use(express.json());
 app.use(cookieParser());
-// app.use(cors());
-
 app.use(
   fileUpload({
     useTempFiles: true, //this middeare is for fileupload in local media;
@@ -52,6 +71,7 @@ cloudinaryConnect();
 
 //routes
 app.use('/api/v1/auth', userRoutes);
+app.use('/api/v1/profile', userProfile);
 app.use('/api/v1/country', countryRoutes);
 app.use('/api/v1/intern', internRoutes);
 
