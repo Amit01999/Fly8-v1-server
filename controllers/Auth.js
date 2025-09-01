@@ -11,27 +11,11 @@ require('dotenv').config();
 //signUp
 const signUp = async (req, res) => {
   try {
-    const {
-      firstName,
-      lastName,
-      email,
-      password,
-      phone,
-      country,
-      referral,
-      otp,
-    } = req.body;
+    const { firstName, lastName, email, password, phone, country, referral } =
+      req.body;
 
     // Validate required fields
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !password ||
-      !phone ||
-      !country ||
-      !otp
-    ) {
+    if (!firstName || !lastName || !email || !password || !phone || !country) {
       return res.status(403).json({
         success: false,
         message: 'All required fields must be provided',
@@ -47,29 +31,15 @@ const signUp = async (req, res) => {
       });
     }
 
-    // Find the most recent OTP for the email
-    const response = await OTP.find({ email }).sort({ createdAt: -1 }).limit(1);
-    if (response.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'OTP NOT Found',
-      });
-    } else if (otp !== response[0].otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid OTP',
-      });
-    }
-
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create empty profile entry
+    // Create profile entry first
     const profileDetails = await Profile.create({
-      student: null, // Will be set after student creation
+      student: null, // Allowed since student is not required
     });
 
-    // Create student entry with optional referral
+    // Create student entry with profile ID
     const student = await Student.create({
       firstName,
       lastName,
@@ -79,14 +49,15 @@ const signUp = async (req, res) => {
       country,
       referral: referral || null,
       approved: true,
-      active: true, // From your provided studentSchema
+      active: true,
       additionalDetails: profileDetails._id,
       image: `https://api.dicebear.com/5.x/initials/svg?seed=${firstName} ${lastName}`,
     });
 
     // Update profile with student ID
-    profileDetails.student = student._id;
-    await profileDetails.save();
+    await Profile.findByIdAndUpdate(profileDetails._id, {
+      student: student._id,
+    });
 
     return res.status(200).json({
       success: true,
@@ -101,6 +72,98 @@ const signUp = async (req, res) => {
     });
   }
 };
+// const signUp = async (req, res) => {
+//   try {
+//     const {
+//       firstName,
+//       lastName,
+//       email,
+//       password,
+//       phone,
+//       country,
+//       referral,
+//       otp,
+//     } = req.body;
+
+//     // Validate required fields
+//     if (
+//       !firstName ||
+//       !lastName ||
+//       !email ||
+//       !password ||
+//       !phone ||
+//       !country ||
+//       !otp
+//     ) {
+//       return res.status(403).json({
+//         success: false,
+//         message: 'All required fields must be provided',
+//       });
+//     }
+
+//     // Check if student already exists
+//     const existingStudent = await Student.findOne({ email });
+//     if (existingStudent) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Student is already registered',
+//       });
+//     }
+
+//     // Find the most recent OTP for the email
+//     const response = await OTP.find({ email }).sort({ createdAt: -1 }).limit(1);
+//     if (response.length === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'OTP NOT Found',
+//       });
+//     } else if (otp !== response[0].otp) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid OTP',
+//       });
+//     }
+
+//     // Hash the password
+//     const hashedPassword = await bcrypt.hash(password, 10);
+
+//     // Create empty profile entry
+//     const profileDetails = await Profile.create({
+//       student: null, // Will be set after student creation
+//     });
+
+//     // Create student entry with optional referral
+//     const student = await Student.create({
+//       firstName,
+//       lastName,
+//       email,
+//       password: hashedPassword,
+//       phone,
+//       country,
+//       referral: referral || null,
+//       approved: true,
+//       active: true, // From your provided studentSchema
+//       additionalDetails: profileDetails._id,
+//       image: `https://api.dicebear.com/5.x/initials/svg?seed=${firstName} ${lastName}`,
+//     });
+
+//     // Update profile with student ID
+//     profileDetails.student = student._id;
+//     await profileDetails.save();
+
+//     return res.status(200).json({
+//       success: true,
+//       student,
+//       message: 'Student is registered successfully',
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Student cannot be registered. Please try again',
+//     });
+//   }
+// };
 //Login
 const login = async (req, res) => {
   try {

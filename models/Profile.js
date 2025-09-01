@@ -5,7 +5,7 @@ const profileSchema = new mongoose.Schema(
     student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'student',
-      required: true,
+      required: false,
     },
     age: {
       type: Number,

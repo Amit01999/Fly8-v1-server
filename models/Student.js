@@ -26,7 +26,7 @@ const studentSchema = new mongoose.Schema(
     },
     country: {
       type: String,
-      required: true,
+      required: false,
     },
     referral: {
       // Add optional referral field
