@@ -5,6 +5,7 @@ const userRoutes = require('./routes/User');
 const userProfile = require('./routes/Profile');
 const internRoutes = require('./routes/intern');
 const countryRoutes = require('./routes/County');
+const referralRoutes = require('./routes/referralRoutes');
 
 const database = require('./config/database');
 const cookieParser = require('cookie-parser');
@@ -74,6 +75,7 @@ app.use('/api/v1/auth', userRoutes);
 app.use('/api/v1/profile', userProfile);
 app.use('/api/v1/country', countryRoutes);
 app.use('/api/v1/intern', internRoutes);
+app.use('/api/v1/referral', referralRoutes);
 
 //def route
 app.get('/', (req, res) => {
