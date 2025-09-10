@@ -6,6 +6,7 @@ const userProfile = require('./routes/Profile');
 const internRoutes = require('./routes/intern');
 const countryRoutes = require('./routes/County');
 const referralRoutes = require('./routes/referralRoutes');
+const GstuRegistrationRoutes = require('./routes/GstuRegistrationRoutes');
 
 const database = require('./config/database');
 const cookieParser = require('cookie-parser');
@@ -20,24 +21,6 @@ const PORT = process.env.PORT || 4000;
 //database connect
 database.connect();
 
-// app.use(
-//   cors({
-//     origin: (origin, callback) => {
-//       const allowedOrigins = [
-//         'https://fly8-v1.vercel.app',
-//         'https://fly8.global', // ✅ Add your custom domain here
-//         'https://www.fly8.global', // ✅ Optionally include www version if needed
-//         'http://localhost:8080',
-//       ];
-//       if (!origin || allowedOrigins.includes(origin)) {
-//         callback(null, true);
-//       } else {
-//         callback(new Error('Not allowed by CORS'));
-//       }
-//     },
-//     credentials: true,
-//   })
-// );
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -76,6 +59,7 @@ app.use('/api/v1/profile', userProfile);
 app.use('/api/v1/country', countryRoutes);
 app.use('/api/v1/intern', internRoutes);
 app.use('/api/v1/referral', referralRoutes);
+app.use('/api/v1/gstu', GstuRegistrationRoutes);
 
 //def route
 app.get('/', (req, res) => {
