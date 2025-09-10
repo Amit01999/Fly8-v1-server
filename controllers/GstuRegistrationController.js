@@ -25,9 +25,6 @@ const register = async (req, res) => {
 
     await registration.save();
 
-    // Console log the data
-    console.log('New Registration:', registration);
-
     // Send email using nodemailer (configure with your email service)
     const transporter = nodemailer.createTransport({
       service: 'gmail', // Or your email service
