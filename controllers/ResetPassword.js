@@ -22,16 +22,23 @@ const resetPasswordToken = async (req, res) => {
       { email: email },
       {
         token: token,
-        resetPasswordExpires: Date.now() + 5 * 60 * 60,
+        resetPasswordExpires: Date.now() + 5 * 60 * 1000,
       },
       { new: true }
     ); // {new:true} added because it return updated object so updatedDetails contain updated details;
-
-    const url = `http://localhost:3000/update-password/${token}`; //create url
+    const url = `https://www.fly8.global/update-password/${token}`;
+    // const url = `http://localhost:8080/update-password/${token}`;
     await mailSender(
       email,
-      'Password Reset Link',
-      `Your Link for email verification is ${url}. Please click this url to reset your password.`
+      'Fly8 Password Reset',
+      `
+        <h2>Fly8 Password Reset</h2>
+        <p>Hello ${user.firstName},</p>
+        <p>You requested to reset your password. Please click the link below to set a new password:</p>
+        <a href="${url}" style="color: #2563eb; text-decoration: underline;">Reset Password</a>
+        <p>This link will expire in 5 minutes. If you did not request this, please ignore this email.</p>
+        <p>Best regards,<br/>The Fly8 Team</p>
+      `
     ); //send mail containing the url
 
     return res.json({
@@ -52,6 +59,11 @@ const resetPasswordToken = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { password, confirmPassword, token } = req.body; //data fetch
+    if (!password || !confirmPassword || !token) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'All fields are required' });
+    }
     if (password !== confirmPassword) {
       //validation
       return res.json({ success: false, message: 'Password not matching' });
@@ -63,20 +75,22 @@ const resetPassword = async (req, res) => {
       return res.json({ success: false, message: 'Token is invalid' });
     }
 
-    if (!(userDetails.resetPasswordExpires > Date.now())) {
-      //token time check
-      return res.json({
+    if (userDetails.resetPasswordExpires < Date.now()) {
+      return res.status(400).json({
         success: false,
-        message: 'Token is expired, please regenerate your token',
+        message: 'Token expired, please request a new link',
       });
     }
-
     const encryptedPassword = await bcrypt.hash(password, 10); //hash password
 
     //password update IN DB;
     await User.findOneAndUpdate(
-      { token: token },
-      { password: encryptedPassword },
+      { token },
+      {
+        password: encryptedPassword,
+        token: null, // Clear token
+        resetPasswordExpires: null, // Clear expiry
+      },
       { new: true }
     );
 
