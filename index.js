@@ -3,6 +3,7 @@ const app = express();
 
 const userRoutes = require('./routes/User');
 const userProfile = require('./routes/Profile');
+const studentRoutes = require('./routes/student');
 const internRoutes = require('./routes/intern');
 const countryRoutes = require('./routes/County');
 const referralRoutes = require('./routes/referralRoutes');
@@ -11,6 +12,7 @@ const GstuRegistrationRoutes = require('./routes/GstuRegistrationRoutes');
 const database = require('./config/database');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const fileUpload = require('express-fileupload');
 const { cloudinaryConnect } = require('./config/cloudinary');
 const dotenv = require('dotenv');
 const blogRoutes = require('./routes/blogRoutes');
@@ -45,12 +47,19 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(
+  fileUpload({
+    useTempFiles: true,
+    tempFileDir: '/tmp/',
+  })
+);
 //cloudinary connection
 cloudinaryConnect();
 
 //routes
 app.use('/api/v1/auth', userRoutes);
 app.use('/api/v1/profile', userProfile);
+app.use('/api/v1/student', studentRoutes);
 app.use('/api/v1/country', countryRoutes);
 app.use('/api/v1/intern', internRoutes);
 app.use('/api/v1/referral', referralRoutes);
