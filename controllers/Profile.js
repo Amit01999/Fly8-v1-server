@@ -236,4 +236,115 @@ const uploadDocuments = (req, res) => {
     }
   });
 };
-module.exports = { submitAssessment, uploadDocuments };
+// Controller for calculating profile completion percentage
+const getProfileCompletion = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const student = await Student.findById(studentId).populate(
+      'additionalDetails'
+    );
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found',
+      });
+    }
+
+    const profile = student.additionalDetails;
+
+    if (!profile) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          percentage: 0,
+          completedFields: [],
+          missingFields: [],
+          documentsUploaded: 0,
+          totalDocuments: 6,
+        },
+      });
+    }
+
+    // Define all profile fields with weights
+    const profileFields = [
+      { field: 'age', weight: 1 },
+      { field: 'currentEducationLevel', weight: 1 },
+      { field: 'fieldOfStudy', weight: 1 },
+      { field: 'gpa', weight: 1 },
+      { field: 'graduationYear', weight: 1 },
+      { field: 'institution', weight: 1 },
+      { field: 'ielts', weight: 0.5 },
+      { field: 'toefl', weight: 0.5 },
+      { field: 'gre', weight: 0.5 },
+      { field: 'preferredCountries', weight: 1 },
+      { field: 'preferredDegreeLevel', weight: 1 },
+      { field: 'budget', weight: 1 },
+      { field: 'careerGoals', weight: 1 },
+      { field: 'industry', weight: 1 },
+      { field: 'workLocation', weight: 1 },
+    ];
+
+    const documentFields = [
+      'transcripts',
+      'testScores',
+      'sop',
+      'recommendation',
+      'resume',
+      'passport',
+    ];
+
+    const completedFields = [];
+    const missingFields = [];
+    let totalWeight = 0;
+    let completedWeight = 0;
+
+    // Check profile fields
+    profileFields.forEach(({ field, weight }) => {
+      totalWeight += weight;
+      const value = profile[field];
+      const isCompleted =
+        value !== undefined &&
+        value !== null &&
+        value !== '' &&
+        (Array.isArray(value) ? value.length > 0 : true);
+
+      if (isCompleted) {
+        completedFields.push(field);
+        completedWeight += weight;
+      } else {
+        missingFields.push(field);
+      }
+    });
+
+    // Check documents (20% weight)
+    const documentsUploaded = documentFields.filter(
+      field => profile[field]
+    ).length;
+    const totalDocuments = documentFields.length;
+
+    // Calculate percentage: 80% for profile fields, 20% for documents
+    const profilePercentage = (completedWeight / totalWeight) * 80;
+    const documentsPercentage = (documentsUploaded / totalDocuments) * 20;
+    const totalPercentage = Math.round(profilePercentage + documentsPercentage);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        percentage: totalPercentage,
+        completedFields,
+        missingFields,
+        documentsUploaded,
+        totalDocuments,
+      },
+    });
+  } catch (error) {
+    console.error('Get profile completion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+};
+
+module.exports = { submitAssessment, uploadDocuments, getProfileCompletion };
