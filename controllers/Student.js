@@ -432,3 +432,165 @@ exports.getAccountInfo = async (req, res) => {
     });
   }
 };
+
+// Get uploaded documents
+exports.getDocuments = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Find student and populate profile
+    const student = await Student.findById(userId).populate('additionalDetails');
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found',
+      });
+    }
+
+    if (!student.additionalDetails) {
+      return res.status(200).json({
+        success: true,
+        message: 'No documents found',
+        data: {
+          documents: [],
+        },
+      });
+    }
+
+    const profile = student.additionalDetails;
+
+    // Document types to check
+    const documentTypes = [
+      'transcripts',
+      'testScores',
+      'sop',
+      'recommendation',
+      'resume',
+      'passport',
+    ];
+
+    // Build documents array
+    const documents = [];
+    documentTypes.forEach((type) => {
+      if (profile[type]) {
+        // Extract filename from URL
+        const url = profile[type];
+        const fileName = url.split('/').pop() || `${type}.pdf`;
+
+        documents.push({
+          id: `${userId}_${type}`,
+          name: fileName,
+          type: type,
+          url: url,
+          size: 0, // Size not stored, default to 0
+          uploadedAt: profile.updatedAt || new Date().toISOString(),
+        });
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Documents retrieved successfully',
+      data: {
+        documents,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching documents',
+      error: error.message,
+    });
+  }
+};
+
+// Delete uploaded document
+exports.deleteDocument = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { documentId } = req.params;
+
+    // Validate documentId
+    if (!documentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Document ID is required',
+      });
+    }
+
+    // Parse documentId to extract document type
+    // Expected format: userId_documentType
+    const documentType = documentId.split('_')[1];
+
+    // Validate document type
+    const validDocTypes = [
+      'transcripts',
+      'testScores',
+      'sop',
+      'recommendation',
+      'resume',
+      'passport',
+    ];
+
+    if (!validDocTypes.includes(documentType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type',
+      });
+    }
+
+    // Find student and populate profile
+    const student = await Student.findById(userId);
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found',
+      });
+    }
+
+    if (!student.additionalDetails) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found',
+      });
+    }
+
+    // Find and update profile
+    const profile = await Profile.findById(student.additionalDetails);
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found',
+      });
+    }
+
+    // Check if document exists
+    if (!profile[documentType]) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found',
+      });
+    }
+
+    // Remove document URL from profile
+    profile[documentType] = undefined;
+    await profile.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Document deleted successfully',
+      data: {
+        documentType,
+      },
+    });
+  } catch (error) {
+    console.error('Error deleting document:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error deleting document',
+      error: error.message,
+    });
+  }
+};

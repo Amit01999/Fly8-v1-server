@@ -9,6 +9,8 @@ const {
   changeEmail,
   deactivateAccount,
   getAccountInfo,
+  getDocuments,
+  deleteDocument,
 } = require('../controllers/Student');
 
 // Profile routes
@@ -18,6 +20,10 @@ router.put('/profile', auth, updateStudentProfile);
 // Upload routes
 router.post('/upload-document', auth, uploadDocument);
 router.post('/upload-image', auth, uploadProfileImage);
+
+// Document routes
+router.get('/documents', auth, getDocuments);
+router.delete('/documents/delete/:documentId', auth, deleteDocument);
 
 // Account settings routes
 router.put('/change-email', auth, changeEmail);

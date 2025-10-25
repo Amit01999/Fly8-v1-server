@@ -29,6 +29,7 @@
     "nodemon": "^2.0.22",
     "otp-generator": "^4.0.1",
     "razorpay": "^2.8.6",
+    "socket.io": "^4.7.2",
     "uuid": "^11.1.0"
   }
 }
