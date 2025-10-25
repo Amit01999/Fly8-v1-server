@@ -30,6 +30,7 @@ database.connect();
 // CORS configuration
 const allowedOrigins = [
   'https://fly8-v1.vercel.app',
+  'https://admin.fly8.global',
   'https://fly8.global',
   'https://www.fly8.global',
   'http://localhost:8080',
@@ -66,36 +67,36 @@ const io = new Server(server, {
 });
 
 // Socket.io connection handler
-io.on('connection', (socket) => {
+io.on('connection', socket => {
   console.log('New client connected:', socket.id);
 
   // Join user-specific room
-  socket.on('join', (userId) => {
+  socket.on('join', userId => {
     socket.join(userId);
     console.log(`User ${userId} joined their room`);
   });
 
   // Join conversation room
-  socket.on('join-conversation', (conversationId) => {
+  socket.on('join-conversation', conversationId => {
     socket.join(conversationId);
     console.log(`Joined conversation: ${conversationId}`);
   });
 
   // Leave conversation room
-  socket.on('leave-conversation', (conversationId) => {
+  socket.on('leave-conversation', conversationId => {
     socket.leave(conversationId);
     console.log(`Left conversation: ${conversationId}`);
   });
 
   // Typing indicator
-  socket.on('typing', (data) => {
+  socket.on('typing', data => {
     socket.to(data.conversationId).emit('user-typing', {
       userId: data.userId,
       userName: data.userName,
     });
   });
 
-  socket.on('stop-typing', (data) => {
+  socket.on('stop-typing', data => {
     socket.to(data.conversationId).emit('user-stop-typing', {
       userId: data.userId,
     });
