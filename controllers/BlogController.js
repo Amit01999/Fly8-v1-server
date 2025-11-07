@@ -268,12 +268,23 @@ exports.uploadImage = async (req, res) => {
   try {
     console.log('Upload image endpoint hit');
     console.log('Request file:', req.file);
+    console.log('Environment:', process.env.NODE_ENV);
 
     if (!req.file) {
       console.log('No file in request');
       return res.status(400).json({
         success: false,
         error: 'No file uploaded'
+      });
+    }
+
+    // Check file size (should be caught by multer, but double-check)
+    const maxSize = 3 * 1024 * 1024; // 3MB
+    if (req.file.size > maxSize) {
+      console.log(`File too large: ${req.file.size} bytes`);
+      return res.status(400).json({
+        success: false,
+        error: 'File too large. Maximum size is 3MB.'
       });
     }
 
@@ -288,6 +299,15 @@ exports.uploadImage = async (req, res) => {
   } catch (error) {
     console.error('Error uploading image:', error);
     console.error('Error stack:', error.stack);
+
+    // Handle specific Cloudinary errors
+    if (error.http_code) {
+      return res.status(error.http_code).json({
+        success: false,
+        error: error.message || 'Cloudinary upload failed',
+      });
+    }
+
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to upload image',
