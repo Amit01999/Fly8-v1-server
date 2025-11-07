@@ -116,12 +116,20 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(
+
+// Conditional fileUpload middleware - skip for blog routes that use multer
+app.use((req, res, next) => {
+  // Skip fileUpload middleware for blog routes (they use multer)
+  if (req.path.startsWith('/api/v1/blog')) {
+    return next();
+  }
+
   fileUpload({
     useTempFiles: true,
     tempFileDir: '/tmp/',
-  })
-);
+  })(req, res, next);
+});
+
 //cloudinary connection
 cloudinaryConnect();
 

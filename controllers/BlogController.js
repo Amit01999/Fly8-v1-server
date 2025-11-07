@@ -6,19 +6,28 @@ const DOMPurify = require('isomorphic-dompurify'); // For server-side HTML sanit
 // Helper to sanitize HTML
 const sanitizeContent = content => DOMPurify.sanitize(content);
 
-// Upload to Cloudinary
+// Upload to Cloudinary - using data URI method for better reliability
 const uploadToCloudinary = async file => {
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader
-      .upload_stream(
-        { resource_type: 'image', folder: 'fly8-blogs' },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result.secure_url);
-        }
-      )
-      .end(file.buffer);
-  });
+  try {
+    console.log('Starting Cloudinary upload...');
+    console.log('File buffer size:', file.buffer ? file.buffer.length : 'No buffer');
+
+    // Convert buffer to base64 data URI
+    const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+
+    console.log('Uploading to Cloudinary via data URI...');
+    const result = await cloudinary.uploader.upload(base64Image, {
+      resource_type: 'image',
+      folder: 'fly8-blogs',
+      timeout: 120000 // 2 minutes timeout
+    });
+
+    console.log('Cloudinary upload successful:', result.secure_url);
+    return result.secure_url;
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    throw error;
+  }
 };
 
 // Validation middleware (can be chained in routes)
@@ -257,11 +266,32 @@ exports.rejectBlog = async (req, res) => {
 // UPLOAD IMAGE
 exports.uploadImage = async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    console.log('Upload image endpoint hit');
+    console.log('Request file:', req.file);
 
+    if (!req.file) {
+      console.log('No file in request');
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      });
+    }
+
+    console.log('Uploading to Cloudinary...');
     const url = await uploadToCloudinary(req.file);
-    res.json({ url });
+    console.log('Upload successful. URL:', url);
+
+    res.json({
+      success: true,
+      url
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error uploading image:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to upload image',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
