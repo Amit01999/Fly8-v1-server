@@ -12,6 +12,8 @@ const countryRoutes = require('./routes/County');
 const referralRoutes = require('./routes/referralRoutes');
 const GstuRegistrationRoutes = require('./routes/GstuRegistrationRoutes');
 const adminRoutes = require('./routes/admin');
+const universityRoutes = require('./routes/university');
+const programRoutes = require('./routes/program');
 
 const database = require('./config/database');
 const cookieParser = require('cookie-parser');
@@ -143,6 +145,8 @@ app.use('/api/v1/referral', referralRoutes);
 app.use('/api/v1/gstu', GstuRegistrationRoutes);
 app.use('/api/v1/blog', blogRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1', universityRoutes);
+app.use('/api/v1', programRoutes);
 
 //def route
 app.get('/', (req, res) => {
