@@ -153,6 +153,7 @@ app.get('/', (req, res) => {
   return res.json({
     success: true,
     message: 'Your server is up and running....',
+    version: '1.0.1', // Added to trigger deployment
   });
 });
 
