@@ -11,6 +11,7 @@ const internRoutes = require('./routes/intern');
 const countryRoutes = require('./routes/County');
 const referralRoutes = require('./routes/referralRoutes');
 const GstuRegistrationRoutes = require('./routes/GstuRegistrationRoutes');
+const germanCourseRoutes = require('./routes/GermanCourseRoutes');
 const adminRoutes = require('./routes/admin');
 const universityRoutes = require('./routes/university');
 const programRoutes = require('./routes/program');
@@ -68,48 +69,37 @@ const io = new Server(server, {
   transports: ['websocket', 'polling'],
 });
 
-// Socket.io connection handler
-io.on('connection', socket => {
-  console.log('New client connected:', socket.id);
+// Import socket handlers
+const socketHandlers = require('./socket/handlers');
 
-  // Join user-specific room
-  socket.on('join', userId => {
-    socket.join(userId);
-    console.log(`User ${userId} joined their room`);
-  });
+// Socket.io connection handler with authentication
+io.use((socket, next) => {
+  // Extract user info from handshake (set by client)
+  const { userId, userType } = socket.handshake.auth;
 
-  // Join conversation room
-  socket.on('join-conversation', conversationId => {
-    socket.join(conversationId);
-    console.log(`Joined conversation: ${conversationId}`);
-  });
-
-  // Leave conversation room
-  socket.on('leave-conversation', conversationId => {
-    socket.leave(conversationId);
-    console.log(`Left conversation: ${conversationId}`);
-  });
-
-  // Typing indicator
-  socket.on('typing', data => {
-    socket.to(data.conversationId).emit('user-typing', {
-      userId: data.userId,
-      userName: data.userName,
-    });
-  });
-
-  socket.on('stop-typing', data => {
-    socket.to(data.conversationId).emit('user-stop-typing', {
-      userId: data.userId,
-    });
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-  });
+  if (userId) {
+    socket.userId = userId;
+    socket.userType = userType || 'student';
+    next();
+  } else {
+    // Allow connection but log warning
+    console.warn('Socket connected without authentication');
+    next();
+  }
 });
 
-// Make io accessible to routes
+// Handle socket connections with modular handlers
+io.on('connection', socket => {
+  console.log(
+    `Socket connected: ${socket.id}, User: ${socket.userId || 'anonymous'}`
+  );
+
+  // Initialize all socket event handlers
+  socketHandlers(io, socket);
+});
+
+// Make io accessible to routes and controllers
+app.set('io', io);
 app.use((req, res, next) => {
   req.io = io;
   next();
@@ -143,6 +133,7 @@ app.use('/api/v1/country', countryRoutes);
 app.use('/api/v1/intern', internRoutes);
 app.use('/api/v1/referral', referralRoutes);
 app.use('/api/v1/gstu', GstuRegistrationRoutes);
+app.use('/api/v1/german-course', germanCourseRoutes);
 app.use('/api/v1/blog', blogRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1', universityRoutes);
