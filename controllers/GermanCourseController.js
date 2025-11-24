@@ -15,7 +15,6 @@ const register = async (req, res) => {
       otherAcademicLevel,
       previousFly8Course,
       fly8Relation,
-      otherFly8Relation,
     } = req.body;
 
     // Validate required fields
@@ -57,7 +56,6 @@ const register = async (req, res) => {
       otherAcademicLevel: academicLevel === 'Other' ? otherAcademicLevel : undefined,
       previousFly8Course,
       fly8Relation,
-      otherFly8Relation: fly8Relation === 'Other' ? otherFly8Relation : undefined,
       registrationNumber,
     });
 

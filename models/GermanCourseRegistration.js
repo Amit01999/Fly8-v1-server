@@ -78,14 +78,7 @@ const germanCourseRegistrationSchema = new mongoose.Schema(
     fly8Relation: {
       type: String,
       required: [true, 'Please indicate your relation with Fly8 Family'],
-      enum: ['Member', 'Intern', 'Other'],
-    },
-
-    // Other Relation (if 'Other' is selected)
-    otherFly8Relation: {
-      type: String,
-      trim: true,
-      maxlength: [100, 'Other relation cannot exceed 100 characters'],
+      enum: ['Member', 'Intern', 'None of the above'],
     },
 
     // Auto-generated registration number (unique identifier)
@@ -129,11 +122,6 @@ germanCourseRegistrationSchema.pre('save', function (next) {
   // If academicLevel is 'Other', otherAcademicLevel must be provided
   if (this.academicLevel === 'Other' && !this.otherAcademicLevel) {
     next(new Error('Please specify your academic level'));
-  }
-
-  // If fly8Relation is 'Other', otherFly8Relation must be provided
-  if (this.fly8Relation === 'Other' && !this.otherFly8Relation) {
-    next(new Error('Please specify your relation with Fly8 Family'));
   }
 
   next();
